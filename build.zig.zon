@@ -1,0 +1,38 @@
+.{
+    .name = .please2,
+
+    // This is a [Semantic Version](https://semver.org/).
+    .version = "0.0.0",
+
+    .fingerprint = 0x5a90b04424fd9a92, // Changing this has security and trust implications.
+
+    .minimum_zig_version = "0.14.0",
+
+    // This field is optional.
+    // Each dependency must either provide a `url` and `hash`, or a `path`.
+    // `zig build --fetch` can be used to fetch all dependencies of a package, recursively.
+    // Once all dependencies are fetched, `zig build` no longer requires
+    // internet connectivity.
+    .dependencies = .{
+        .clap = .{
+            .url = "git+https://github.com/Hejsil/zig-clap?ref=0.10.0#e47028deaefc2fb396d3d9e9f7bd776ae0b2a43a",
+            .hash = "clap-0.10.0-oBajB434AQBDh-Ei3YtoKIRxZacVPF1iSwp3IX_ZB8f0",
+        },
+        .zeit = .{
+            .url = "git+https://github.com/rockorager/zeit?ref=v0.6.0#44bebf856693332b168d8ba2c45b9d1ec15511de",
+            .hash = "zeit-0.0.0-5I6bk_pZAgB03N1p1GmVOZ--gOFwwQSRKj1UXb5tnaKS",
+        },
+        .ansi_term = .{
+            .url = "git+https://github.com/ziglibs/ansi_term#fa8f4cced8745d4b0404e9607a9c3c051666ae71",
+            .hash = "ansi_term-0.0.0-_baAy9djAACCjSAgaKqigpwm6PTYBWnEqPEJrHzs347X",
+        },
+    },
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "LICENSE",
+        "README.md",
+    },
+}
