@@ -1,84 +1,90 @@
 //! The main library, this orchestrates it.
 
 const std = @import("std");
+const assert = std.debug.assert;
+const Io = std.Io;
 const zeit = @import("zeit");
-const ansi_term = @import("ansi_term");
-const Style = ansi_term.style.Style;
 
-pub fn main() !void {
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+const builtin = @import("builtin");
+const native_os = builtin.os.tag;
 
-    var gpa: std.heap.DebugAllocator(.{}) = .init;
-    const alloc = gpa.allocator();
-    defer _ = gpa.deinit();
+const Username = @import("username.zig");
 
-    var arena = std.heap.ArenaAllocator.init(alloc);
-    defer arena.deinit();
-    const aAlloc = arena.allocator();
+pub const Init = struct {
+    /// A default-selected general purpose allocator for temporary heap allocations.
+    /// Debug mode will set up leak checking.
+    allocator: std.mem.Allocator,
+    /// Environment variables.
+    environ: std.process.EnvMap,
+};
 
-    var env = try std.process.getEnvMap(alloc);
-    defer env.deinit();
+pub fn printInfo(
+    stdout: *Io.Writer,
+    ansiConfig: std.Io.tty.Config,
+    user: Username,
+    dt: zeit.Time,
+) !void {
+    try stdout.print("──── ", .{});
+    try ansiConfig.setColor(stdout, .green);
+    try stdout.print("Hello ", .{});
+    try ansiConfig.setColor(stdout, .bold);
+    try stdout.print("{s}", .{user.username});
+    try ansiConfig.setColor(stdout, .reset);
+    try ansiConfig.setColor(stdout, .green);
+    try stdout.print("! It's ", .{});
+    try ansiConfig.setColor(stdout, .blue);
+    try ansiConfig.setColor(stdout, .bold);
+    try dt.strftime(stdout, "%d %b");
+    try ansiConfig.setColor(stdout, .reset);
+    try stdout.print(" | ", .{});
+    try ansiConfig.setColor(stdout, .blue);
+    try ansiConfig.setColor(stdout, .bold);
+    try dt.strftime(stdout, "%I:%M %p");
+    try ansiConfig.setColor(stdout, .reset);
+    try stdout.print(" ────\n", .{});
+
+    try stdout.flush(); // Don't forget to flush!
+}
+
+pub fn juicedMain(init: Init) !void {
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_file = std.fs.File.stdout();
+    var stdout_writer = stdout_file.writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
 
     const now = try zeit.instant(.{});
-    const local = try zeit.local(aAlloc, &env);
+    const local = try zeit.local(init.allocator, &init.environ);
+    defer local.deinit();
     const now_local = now.in(&local);
     const dt = now_local.time();
 
-    const base_style: Style = .{
-        .foreground = .Green,
-        .background = .Default,
-        .font_style = .{},
-    };
+    const user = try Username.create(init.allocator);
+    defer user.deinit(init.allocator);
 
-    const date_style: Style = .{
-        .foreground = .Blue,
-        .background = .Default,
-        .font_style = .{ .bold = true },
-    };
+    const ansiConfig = std.Io.tty.Config.detect(stdout_file);
 
-    const name_style: Style = .{
-        .foreground = .Green,
-        .background = .Default,
-        .font_style = .{ .bold = true, .rapidblink = true },
-    };
-
-    const user = "Eli";
-
-    try stdout.print("──── ", .{});
-    try ansi_term.format.updateStyle(stdout, base_style, .{});
-    try stdout.print("Hello ", .{});
-    try ansi_term.format.updateStyle(stdout, name_style, base_style);
-    try stdout.print("{s}", .{user});
-    try ansi_term.format.updateStyle(stdout, base_style, name_style);
-    try stdout.print("! It's ", .{});
-    try ansi_term.format.updateStyle(stdout, date_style, base_style);
-    try dt.strftime(stdout, "%d %b");
-    try ansi_term.format.updateStyle(stdout, .{}, date_style);
-    try stdout.print(" | ", .{});
-    try ansi_term.format.updateStyle(stdout, date_style, .{});
-    try dt.strftime(stdout, "%I:%M %p");
-    try ansi_term.format.updateStyle(stdout, .{}, date_style);
-    try stdout.print(" ────\n", .{});
-
-    try bw.flush(); // Don't forget to flush!
+    try printInfo(stdout, ansiConfig, user, dt);
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // Try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
-}
+pub fn main() !void {
+    var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
-test "fuzz example" {
-    const Context = struct {
-        fn testOne(context: @This(), input: []const u8) anyerror!void {
-            _ = context;
-            // Try passing `--fuzz` to `zig build test` and see if it manages to fail this test case!
-            try std.testing.expect(!std.mem.eql(u8, "canyoufindme", input));
-        }
+    const allocator, const is_debug = gpa: {
+        if (native_os == .wasi) break :gpa .{ std.heap.wasm_allocator, false };
+        break :gpa switch (builtin.mode) {
+            .Debug, .ReleaseSafe => .{ debug_allocator.allocator(), true },
+            .ReleaseFast, .ReleaseSmall => .{ std.heap.smp_allocator, false },
+        };
     };
-    try std.testing.fuzz(Context{}, Context.testOne, .{});
+    defer if (is_debug) assert(debug_allocator.deinit() == .ok);
+
+    var env = try std.process.getEnvMap(allocator);
+    defer env.deinit();
+
+    juicedMain(.{
+        .allocator = allocator,
+        .environ = env,
+    }) catch |err| switch (err) {
+        else => @panic("Oops!"),
+    };
 }

@@ -12,9 +12,6 @@ pub fn build(b: *Build) void {
     const zeit = b.dependency("zeit", .{});
     const zeit_mod = zeit.module("zeit");
 
-    const ansi_term = b.dependency("ansi_term", .{});
-    const ansi_term_mod = ansi_term.module("ansi-term");
-
     // Build
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
@@ -22,7 +19,6 @@ pub fn build(b: *Build) void {
         .optimize = optimize,
     });
     exe_mod.addImport("zeit", zeit_mod);
-    exe_mod.addImport("ansi_term", ansi_term_mod);
 
     const exe = b.addExecutable(.{
         .name = name,
