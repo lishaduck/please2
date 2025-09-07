@@ -2,7 +2,7 @@
     .name = .please2,
 
     // This is a [Semantic Version](https://semver.org/).
-    .version = "0.0.0",
+    .version = "0.1.0",
 
     .fingerprint = 0x5a90b04424fd9a92, // Changing this has security and trust implications.
 
