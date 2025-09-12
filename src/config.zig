@@ -3,24 +3,38 @@ const Allocator = std.mem.Allocator;
 
 username: []const u8,
 
-pub fn deinit() void {}
+arena: std.heap.ArenaAllocator,
 
-pub fn load(allocator: Allocator, configFile: []const u8) !?struct { std.json.Parsed(@This()), []u8 } {
-    const file = std.fs.openFileAbsolute(configFile, .{}) catch |err| return switch (err) {
+pub fn deinit(self: @This()) void {
+    self.arena.deinit();
+}
+
+const RawJson = struct { username: []const u8 };
+
+pub fn create(allocator: Allocator, configPath: []const u8) !?@This() {
+    const file = std.fs.openFileAbsolute(configPath, .{}) catch |err| return switch (err) {
         error.FileNotFound => null,
         else => err,
     };
     defer file.close();
 
-    const buffer = try allocator.alloc(u8, 64);
-    defer allocator.free(buffer);
-    var file_reader = file.reader(buffer);
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    errdefer arena.deinit();
+    const a = arena.allocator();
+
+    const size = try file.getEndPos();
+    var source = try a.alloc(u8, size);
+
+    var file_reader = file.reader(source);
     var reader = &file_reader.interface;
 
-    const file_size = try file.getEndPos();
-    const slice = try reader.readAlloc(allocator, file_size);
+    const read_len = try reader.readSliceShort(source);
+    source = source[0..read_len];
 
-    const json = try std.json.parseFromSlice(@This(), allocator, slice, .{});
+    const parsed = try std.json.parseFromSliceLeaky(RawJson, a, source, .{});
 
-    return .{ json, slice };
+    return .{
+        .username = parsed.username,
+        .arena = arena,
+    };
 }

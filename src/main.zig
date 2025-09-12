@@ -64,18 +64,15 @@ pub fn juicedMain(init: Init) !void {
     const configFile = try dirs.getConfigFile(init.allocator, "please2");
     defer init.allocator.free(configFile);
 
-    const config = try Config.load(init.allocator, configFile);
-    defer if (config) |conf| {
-        conf[0].deinit();
-        init.allocator.free(conf[1]);
-    };
+    const config = try Config.create(init.allocator, configFile);
+    defer if (config) |conf| conf.deinit();
 
     const user = try Username.create(init.allocator);
     defer user.deinit(init.allocator);
 
     const ansiConfig = std.Io.tty.Config.detect(stdout_file);
 
-    try printInfo(stdout, ansiConfig, if (config) |conf| conf[0].value else null, user, dt);
+    try printInfo(stdout, ansiConfig, config, user, dt);
 }
 
 pub fn main() !void {
