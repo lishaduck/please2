@@ -8,6 +8,8 @@ const zeit = @import("zeit");
 const builtin = @import("builtin");
 const native_os = builtin.os.tag;
 
+const Config = @import("config.zig");
+const dirs = @import("dirs.zig");
 const Username = @import("username.zig");
 
 pub const Init = struct {
@@ -21,6 +23,7 @@ pub const Init = struct {
 pub fn printInfo(
     stdout: *Io.Writer,
     ansiConfig: std.Io.tty.Config,
+    config: ?Config,
     user: Username,
     dt: zeit.Time,
 ) !void {
@@ -28,7 +31,7 @@ pub fn printInfo(
     try ansiConfig.setColor(stdout, .green);
     try stdout.print("Hello ", .{});
     try ansiConfig.setColor(stdout, .bold);
-    try stdout.print("{s}", .{user.username});
+    try stdout.print("{s}", .{if (config) |conf| conf.username else user.username});
     try ansiConfig.setColor(stdout, .reset);
     try ansiConfig.setColor(stdout, .green);
     try stdout.print("! It's ", .{});
@@ -58,12 +61,21 @@ pub fn juicedMain(init: Init) !void {
     const now_local = now.in(&local);
     const dt = now_local.time();
 
+    const configFile = try dirs.getConfigFile(init.allocator, "please2");
+    defer init.allocator.free(configFile);
+
+    const config = try Config.load(init.allocator, configFile);
+    defer if (config) |conf| {
+        conf[0].deinit();
+        init.allocator.free(conf[1]);
+    };
+
     const user = try Username.create(init.allocator);
     defer user.deinit(init.allocator);
 
     const ansiConfig = std.Io.tty.Config.detect(stdout_file);
 
-    try printInfo(stdout, ansiConfig, user, dt);
+    try printInfo(stdout, ansiConfig, if (config) |conf| conf[0].value else null, user, dt);
 }
 
 pub fn main() !void {
@@ -85,6 +97,7 @@ pub fn main() !void {
         .allocator = allocator,
         .environ = env,
     }) catch |err| switch (err) {
-        else => @panic("Oops!"),
+        // TODO: Nicer error handling.
+        else => return err,
     };
 }
