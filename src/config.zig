@@ -1,6 +1,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
+const files = @import("files.zig");
+
 username: []const u8,
 
 arena: std.heap.ArenaAllocator,
@@ -22,14 +24,7 @@ pub fn create(allocator: Allocator, configPath: []const u8) !?@This() {
     errdefer arena.deinit();
     const a = arena.allocator();
 
-    const size = try file.getEndPos();
-    var source = try a.alloc(u8, size);
-
-    var file_reader = file.reader(source);
-    var reader = &file_reader.interface;
-
-    const read_len = try reader.readSliceShort(source);
-    source = source[0..read_len];
+    const source = try files.readFileAlloc(a, file);
 
     const parsed = try std.json.parseFromSliceLeaky(RawJson, a, source, .{});
 
